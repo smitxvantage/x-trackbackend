@@ -1,0 +1,1 @@
+ALTER TABLE `salary` MODIFY COLUMN `user_id` int;

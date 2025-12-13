@@ -28,7 +28,9 @@ export async function createUser(payload) {
     role: payload.role ?? "employee",
     department: payload.department ?? null,
     managerId: payload.managerId ?? null,
-    joiningDate: payload.joiningDate ?? null
+    joiningDate: payload.joiningDate ?? null,
+    earnedLeave: 0,
+    lastLeaveIncrement: new Date(),
   }).$returningId();
   return { id: inserted.id };
 }

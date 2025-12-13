@@ -1,0 +1,1 @@
+ALTER TABLE `leave_requests` MODIFY COLUMN `total_days` float NOT NULL;

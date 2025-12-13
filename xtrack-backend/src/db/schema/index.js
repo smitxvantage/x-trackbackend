@@ -6,3 +6,5 @@ export * from "./leaveRequests.js";
 export * from "./leaveBalances.js";
 export * from "./holidays.js";
 export * from "./notifications.js";
+export * from "./monthlyLeaves.js";
+export * from "./salarySchema.js";

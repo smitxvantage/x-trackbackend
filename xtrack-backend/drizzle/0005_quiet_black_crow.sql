@@ -1,0 +1,1 @@
+ALTER TABLE `salary` ADD `user_id` int NOT NULL;

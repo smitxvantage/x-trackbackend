@@ -14,5 +14,8 @@ export const users = mysqlTable("users", {
   profilePicUrl: text("profile_pic_url"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: datetime("created_at").default(sql`NOW()`).notNull(),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).onUpdateNow().notNull()
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).onUpdateNow().notNull(),
+  earnedLeave: int("earned_leave").default(0).notNull(),
+  lastLeaveIncrement: datetime("last_leave_increment").default(sql`NOW()`).notNull(),
+
 });

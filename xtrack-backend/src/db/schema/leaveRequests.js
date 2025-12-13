@@ -1,6 +1,7 @@
-import { mysqlTable, int, varchar, text, date, datetime, timestamp } from "drizzle-orm/mysql-core";
+import { mysqlTable, int, varchar, text, date, datetime, timestamp, decimal } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 import { users } from "./users.js";
+
 
 export const leaveRequests = mysqlTable("leave_requests", {
   id: int("id").autoincrement().primaryKey(),
@@ -8,12 +9,15 @@ export const leaveRequests = mysqlTable("leave_requests", {
   leaveType: varchar("leave_type", { length: 50 }).notNull(),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
-  totalDays: int("total_days").notNull(),
+   totalDays:decimal("total_days", { precision: 3, scale: 1 }).notNull(),
   reason: text("reason").notNull(),
   status: varchar("status", { length: 50 }).default("pending").notNull(),
   approvedBy: int("approved_by"),
   approvedAt: datetime("approved_at", { mode: "date" }).default(null),
   rejectionReason: text("rejection_reason"),
   createdAt: datetime("created_at").default(sql`NOW()`).notNull(),
-  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).onUpdateNow().notNull()
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).onUpdateNow().notNull(),
+   dayType: varchar("day_type", { length: 10 }).default("full"), 
+   startTime: varchar("start_time", { length: 10 }), 
+  endTime: varchar("end_time", { length: 10 }), 
 });

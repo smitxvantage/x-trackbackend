@@ -1,0 +1,1 @@
+ALTER TABLE `leave_requests` MODIFY COLUMN `total_days` decimal(3,1) NOT NULL;
