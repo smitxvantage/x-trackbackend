@@ -18,5 +18,6 @@ export const dailyReports = mysqlTable("daily_reports", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).onUpdateNow().notNull(),
   tasks: text("tasks"),
   hoursSpent: int("hoursSpent").default(0),
+  admin: varchar("admin", { length: 255 }),
   reportType: varchar("reportType", { length: 255 })
 });
