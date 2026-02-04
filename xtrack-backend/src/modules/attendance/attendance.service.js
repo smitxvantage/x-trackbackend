@@ -1,33 +1,125 @@
 import { db } from "../../db/index.js";
 import { attendance } from "../../db/schema/attendance.js";
 import { users } from "../../db/schema/users.js";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, desc, gte, lte ,isNull} from "drizzle-orm";
 import moment from "moment";
 
-// ----------------------------------------------
-// USER: FETCH MY ATTENDANCE LIST
-// ----------------------------------------------
+/* -------------------------
+   GET MY ATTENDANCE
+-------------------------- */
 export async function getAttendanceByUser(userId) {
   return db
-    .select({
-      id: attendance.id,
-      date: attendance.date,
-      checkIn: attendance.checkIn,
-      checkOut: attendance.checkOut,
-      totalHours: attendance.totalHours,
-      status: attendance.status,
-    })
+    .select()
     .from(attendance)
     .where(eq(attendance.userId, userId))
-    .orderBy(attendance.date);
+    .orderBy(desc(attendance.id));
 }
 
-// ----------------------------------------------
-// USER: MONTHLY SUMMARY
-// ----------------------------------------------
-export async function getMonthlySummary(userId) {
-  const monthStart = moment().startOf("month").format("YYYY-MM-DD");
-  const monthEnd = moment().endOf("month").format("YYYY-MM-DD");
+/* -------------------------
+   CHECK IN (SAFE)
+-------------------------- */
+
+export async function checkIn(userId) {
+  const today = moment().format("YYYY-MM-DD");
+  const now = moment().format("HH:mm");
+
+  // ✅ CORRECT NULL CHECK
+  const openSession = await db
+    .select()
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.userId, userId),
+        isNull(attendance.checkOut)
+      )
+    )
+    .orderBy(desc(attendance.id))
+    .limit(1);
+
+  if (openSession.length) {
+    throw new Error("Already checked in");
+  }
+
+  await db.insert(attendance).values({
+    userId,
+    date: today,
+    checkIn: now,
+    checkOut: null,
+    totalHours: null,
+    status: "working",
+  });
+
+  return { message: "Checked in" };
+}
+
+
+
+/* -------------------------
+   CHECK OUT (CORRECT)
+-------------------------- */
+export async function checkOut(userId) {
+  const now = moment().format("HH:mm");
+
+  // ✅ CORRECT NULL CHECK
+  const openSession = await db
+    .select()
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.userId, userId),
+        isNull(attendance.checkOut)
+      )
+    )
+    .orderBy(desc(attendance.id))
+    .limit(1);
+
+  if (!openSession.length) {
+    throw new Error("Not checked in");
+  }
+
+  const session = openSession[0];
+
+  const start = moment(session.checkIn, "HH:mm");
+  const end = moment(now, "HH:mm");
+
+  const minutes = Math.max(end.diff(start, "minutes"), 0);
+  const hours = Number((minutes / 60).toFixed(2));
+
+  await db
+    .update(attendance)
+    .set({
+      checkOut: now,
+      totalHours: hours,
+      status: "completed",
+    })
+    .where(eq(attendance.id, session.id));
+
+  return { message: "Checked out" };
+}
+
+
+/* -------------------------
+   TODAY HOURS
+-------------------------- */
+export async function getTodayMinutes(userId) {
+  const today = moment().format("YYYY-MM-DD");
+
+  const rows = await db
+    .select()
+    .from(attendance)
+    .where(and(eq(attendance.userId, userId), eq(attendance.date, today)));
+
+  let minutes = 0;
+  rows.forEach(r => minutes += Math.round((r.totalHours || 0) * 60));
+  return minutes;
+}
+
+/* -------------------------
+   WEEKLY HOURS
+-------------------------- */
+export async function getWeeklyHours(userId) {
+  const start = moment().startOf("week").format("YYYY-MM-DD");
+  const end = moment().endOf("week").format("YYYY-MM-DD");
 
   const rows = await db
     .select()
@@ -35,112 +127,28 @@ export async function getMonthlySummary(userId) {
     .where(
       and(
         eq(attendance.userId, userId),
-        gte(attendance.date, monthStart),
-        lte(attendance.date, monthEnd)
+        gte(attendance.date, start),
+        lte(attendance.date, end)
       )
     );
 
-  return {
-    present: rows.filter(r => r.status === "on-time").length,
-    late: rows.filter(r => r.status === "late").length,
-    absent: 0,
-  };
+  let hours = 0;
+  rows.forEach(r => hours += Number(r.totalHours || 0));
+  return { weeklyHours: hours };
 }
 
-// ----------------------------------------------
-// ADMIN: MERGED DAILY ATTENDANCE
-// ----------------------------------------------
+/* -------------------------
+   ADMIN
+-------------------------- */
 export async function getAllAttendance() {
-  const rows = await db
+  return db
     .select({
-      id: attendance.id,
-      userId: attendance.userId,
-      userName: users.name,
+      user: users.name,
       date: attendance.date,
       checkIn: attendance.checkIn,
       checkOut: attendance.checkOut,
-      totalHours: attendance.totalHours,
+      hours: attendance.totalHours,
     })
     .from(attendance)
     .leftJoin(users, eq(attendance.userId, users.id));
-
-  const grouped = {};
-
-  for (const r of rows) {
-    const d = r.date.toISOString().split("T")[0];
-    const key = `${r.userId}_${d}`;
-
-    if (!grouped[key]) {
-      grouped[key] = {
-        userId: r.userId,
-        userName: r.userName,
-        date: d,
-        firstCheckIn: r.checkIn,
-        lastCheckOut: r.checkOut,
-        totalHours: Number(r.totalHours ?? 0),
-      };
-    } else {
-      if (r.checkIn && r.checkIn < grouped[key].firstCheckIn) {
-        grouped[key].firstCheckIn = r.checkIn;
-      }
-      if (r.checkOut && r.checkOut > grouped[key].lastCheckOut) {
-        grouped[key].lastCheckOut = r.checkOut;
-      }
-
-      grouped[key].totalHours += Number(r.totalHours ?? 0);
-    }
-  }
-
-  return Object.values(grouped);
-}
-
-// ----------------------------------------------
-// CHECK-IN
-// ----------------------------------------------
-export async function checkIn(userId) {
-  const today = moment().format("YYYY-MM-DD");
-  const now = moment().format("HH:mm");
-
-  await db.insert(attendance).values({
-    userId,
-    date: today,
-    checkIn: now,
-    status: "on-time",
-  });
-
-  return { message: "Checked in" };
-}
-
-// ----------------------------------------------
-// CHECK-OUT
-// ----------------------------------------------
-export async function checkOut(userId) {
-  const today = moment().format("YYYY-MM-DD");
-  const now = moment().format("HH:mm");
-
-  const rows = await db
-    .select()
-    .from(attendance)
-    .where(and(eq(attendance.userId, userId), eq(attendance.date, today)));
-
-  if (rows.length === 0) {
-    throw new Error("Cannot check-out — no check-in found");
-  }
-
-  const lastEntry = rows[rows.length - 1];
-
-  const start = moment(lastEntry.checkIn, "HH:mm");
-  const end = moment(now, "HH:mm");
-
-  const diffHours = Number((end.diff(start, "minutes") / 60).toFixed(2));
-
-  await db
-    .update(attendance)
-    .set({
-      checkOut: now,
-      totalHours: diffHours,
-    })
-    .where(eq(attendance.id, lastEntry.id));
-
-  return { message: "Checked out" };
 }
