@@ -1,21 +1,61 @@
 import * as service from "./attendance.service.js";
 
-export const getMyAttendance = async (req, res, next) => {
-  try { res.json({ success: true, data: await service.getAttendanceByUser(req.user.id) }); }
-  catch (e) { next(e); }
-};
+// --------------------------------------
+// USER: GET /attendance/me
+// --------------------------------------
+export async function getMyAttendance(req, res, next) {
+  try {
+    const data = await service.getAttendanceByUser(req.user.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
 
-export const checkIn = async (req, res, next) => {
-  try { res.json({ success: true, data: await service.checkIn(req.user.id) }); }
-  catch (e) { next(e); }
-};
+// --------------------------------------
+// USER: GET /attendance/my-summary
+// --------------------------------------
+export async function getMySummary(req, res, next) {
+  try {
+    const data = await service.getMonthlySummary(req.user.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
 
-export const checkOut = async (req, res, next) => {
-  try { res.json({ success: true, data: await service.checkOut(req.user.id) }); }
-  catch (e) { next(e); }
-};
+// --------------------------------------
+// USER: POST /attendance/check-in
+// --------------------------------------
+export async function checkIn(req, res, next) {
+  try {
+    const data = await service.checkIn(req.user.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
 
-export const getWeeklyHours = async (req, res, next) => {
-  try { res.json({ success: true, data: await service.getWeeklyHours(req.user.id) }); }
-  catch (e) { next(e); }
-};
+// --------------------------------------
+// USER: POST /attendance/check-out
+// --------------------------------------
+export async function checkOut(req, res, next) {
+  try {
+    const data = await service.checkOut(req.user.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// --------------------------------------
+// ADMIN: GET /attendance
+// --------------------------------------
+export async function getAllAttendance(req, res, next) {
+  try {
+    const data = await service.getAllAttendance();
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
