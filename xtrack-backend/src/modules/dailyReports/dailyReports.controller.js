@@ -21,7 +21,11 @@ export async function createReport(req, res, next) {
 
 export async function updateMyReport(req, res, next) {
   try {
-    const data = await service.updateOwnReport(req.user.id, Number(req.params.id), req.body);
+    const data = await service.updateOwnReport(
+      req.user.id,
+      Number(req.params.id),
+      req.body,
+    );
     return ok(res, data);
   } catch (err) {
     next(err);
@@ -39,7 +43,18 @@ export async function getAllReports(req, res, next) {
 
 export async function approveReport(req, res, next) {
   try {
-    const data = await service.approveReport(Number(req.params.id), req.user.id);
+    const { admin } = req.body; // 👈 selected admin name
+
+    if (!admin) {
+      return res.status(400).json({ message: "Admin name is required" });
+    }
+
+    const data = await service.approveReport(
+      Number(req.params.id),
+      req.user.id,
+      admin,
+    );
+
     return ok(res, data);
   } catch (err) {
     next(err);
@@ -48,7 +63,11 @@ export async function approveReport(req, res, next) {
 
 export async function rejectReport(req, res, next) {
   try {
-    const data = await service.rejectReport(Number(req.params.id), req.user.id, req.body.reason);
+    const data = await service.rejectReport(
+      Number(req.params.id),
+      req.user.id,
+      req.body.reason,
+    );
     return ok(res, data);
   } catch (err) {
     next(err);
