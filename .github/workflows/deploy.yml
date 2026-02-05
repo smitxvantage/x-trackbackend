@@ -5,7 +5,6 @@ on:
     branches:
       - main
 
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -20,6 +19,7 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
+        working-directory: xtrack-backend
         run: npm install
 
       - name: Deploy to Server via SSH
@@ -27,7 +27,7 @@ jobs:
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
+          password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             cd /var/www/x-track/x-trackbackend/xtrack-backend
             git fetch origin
