@@ -26,26 +26,27 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y expect
 
       - name: Deploy to server using password
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-        run: |
-          expect << EOF
-          set timeout 120
-          spawn ssh -o StrictHostKeyChecking=no $env(SERVER_USER)@$env(SERVER_HOST)
-          expect {
-            "password:" {
-              send "$env(SERVER_PASSWORD)\r"
-            }
-          }
-          expect "#"
-          send "cd /var/www/x-track/x-trackbackend/xtrack-backend\r"
-          send "git fetch origin\r"
-          send "git reset --hard origin/main\r"
-          send "npm install\r"
-          send "pm2 restart all\r"
-          send "exit\r"
-          expect eof
-          EOF
-          
+    env:
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+    run: |
+      expect << 'EOF'
+      set timeout 120
+      spawn ssh -o StrictHostKeyChecking=no $env(SERVER_USER)@$env(SERVER_HOST)
+      expect {
+        "password:" {
+          send "$env(SERVER_PASSWORD)\r"
+        }
+      }
+      expect "#"
+      send "cd /var/www/x-track/x-trackbackend/xtrack-backend\r"
+      send "git fetch origin\r"
+      send "git reset --hard origin/main\r"
+      send "npm install\r"
+      send "pm2 restart all\r"
+      send "exit\r"
+      expect eof
+      EOF
+
+
