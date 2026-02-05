@@ -1,4 +1,4 @@
-name: Deploy XTrack Backend
+name: Deploy XTrack Backend (Password SSH)
 
 on:
   push:
@@ -18,20 +18,33 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install dependencies
+      - name: Install dependencies (CI check)
         working-directory: xtrack-backend
         run: npm install
 
-      - name: Deploy to Server via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script: |
-            cd /var/www/x-track/x-trackbackend/xtrack-backend
-            git fetch origin
-            git reset --hard origin/main
-            npm install
-            pm2 restart all
+      - name: Install expect
+        run: sudo apt-get update && sudo apt-get install -y expect
 
+      - name: Deploy to server using password
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          expect << EOF
+          set timeout 120
+          spawn ssh -o StrictHostKeyChecking=no $env(SERVER_USER)@$env(SERVER_HOST)
+          expect {
+            "password:" {
+              send "$env(SERVER_PASSWORD)\r"
+            }
+          }
+          expect "#"
+          send "cd /var/www/x-track/x-trackbackend/xtrack-backend\r"
+          send "git fetch origin\r"
+          send "git reset --hard origin/main\r"
+          send "npm install\r"
+          send "pm2 restart all\r"
+          send "exit\r"
+          expect eof
+          EOF
