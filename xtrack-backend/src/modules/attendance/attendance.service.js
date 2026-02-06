@@ -3,23 +3,37 @@ import { attendance } from "../../db/schema/attendance.js";
 import { users } from "../../db/schema/users.js";
 import { eq, and, gte, lte } from "drizzle-orm";
 import moment from "moment";
+import { or, isNull } from "drizzle-orm";
 
 // ----------------------------------------------
-// USER: FETCH MY ATTENDANCE LIST
+// USER: FETCH MY ATTENDANCE LIST (REFRESH SAFE)
 // ----------------------------------------------
 export async function getAttendanceByUser(userId) {
-  return db
-    .select({
-      id: attendance.id,
-      date: attendance.date,
-      checkIn: attendance.checkIn,
-      checkOut: attendance.checkOut,
-      totalHours: attendance.totalHours,
-      status: attendance.status,
-    })
+  const rows = await db
+    .select()
     .from(attendance)
     .where(eq(attendance.userId, userId))
     .orderBy(attendance.date);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const todayEntry = rows.find((r) => {
+    const rowDate =
+      r.date instanceof Date ? r.date.toISOString().slice(0, 10) : r.date;
+
+    return rowDate === today && r.checkInAt && !r.checkOut;
+  });
+
+  return {
+    records: rows,
+    activeSession: todayEntry
+      ? {
+          checkInAt: todayEntry.checkInAt,
+          totalPausedSeconds: todayEntry.totalPausedSeconds,
+          isPaused: todayEntry.isPaused,
+        }
+      : null,
+  };
 }
 
 // ----------------------------------------------
@@ -36,13 +50,13 @@ export async function getMonthlySummary(userId) {
       and(
         eq(attendance.userId, userId),
         gte(attendance.date, monthStart),
-        lte(attendance.date, monthEnd)
-      )
+        lte(attendance.date, monthEnd),
+      ),
     );
 
   return {
-    present: rows.filter(r => r.status === "on-time").length,
-    late: rows.filter(r => r.status === "late").length,
+    present: rows.filter((r) => r.status === "on-time").length,
+    late: rows.filter((r) => r.status === "late").length,
     absent: 0,
   };
 }
@@ -98,17 +112,87 @@ export async function getAllAttendance() {
 // CHECK-IN
 // ----------------------------------------------
 export async function checkIn(userId) {
-  const today = moment().format("YYYY-MM-DD");
-  const now = moment().format("HH:mm");
+  const now = moment();
 
   await db.insert(attendance).values({
     userId,
-    date: today,
-    checkIn: now,
+    date: now.format("YYYY-MM-DD"),
+    checkIn: now.format("HH:mm"),
+    checkInAt: now.toDate(), // ✅ REQUIRED
+    isPaused: false,
+    totalPausedSeconds: 0,
     status: "on-time",
   });
 
-  return { message: "Checked in" };
+  return {
+    checkInAt: now.toISOString(),
+    isPaused: false,
+    totalPausedSeconds: 0,
+  };
+}
+
+// ----------------------------------------------
+// PAUSE SESSION
+// ----------------------------------------------
+export async function pauseSession(userId) {
+  const entry = await db.query.attendance.findFirst({
+    where: and(
+      eq(attendance.userId, userId),
+      isNull(attendance.checkOut),
+      eq(attendance.isPaused, false),
+    ),
+  });
+
+  if (!entry) {
+    throw new Error("No running session to pause");
+  }
+
+  await db
+    .update(attendance)
+    .set({
+      isPaused: true,
+      pausedAt: new Date(),
+    })
+    .where(eq(attendance.id, entry.id));
+
+  return {
+    pausedAt: new Date().toISOString(),
+  };
+}
+
+// ----------------------------------------------
+// RESUME SESSION
+// ----------------------------------------------
+export async function resumeSession(userId) {
+  const entry = await db.query.attendance.findFirst({
+    where: and(
+      eq(attendance.userId, userId),
+      isNull(attendance.checkOut),
+      eq(attendance.isPaused, true),
+    ),
+  });
+
+  if (!entry || !entry.pausedAt) {
+    throw new Error("No paused session to resume");
+  }
+
+  const pausedSeconds = Math.floor(
+    (Date.now() - new Date(entry.pausedAt).getTime()) / 1000,
+  );
+
+  await db
+    .update(attendance)
+    .set({
+      isPaused: false,
+      pausedAt: null,
+      totalPausedSeconds: Number(entry.totalPausedSeconds || 0) + pausedSeconds,
+    })
+    .where(eq(attendance.id, entry.id));
+
+  return {
+    resumed: true,
+    totalPausedSeconds: Number(entry.totalPausedSeconds || 0) + pausedSeconds,
+  };
 }
 
 // ----------------------------------------------
@@ -116,31 +200,51 @@ export async function checkIn(userId) {
 // ----------------------------------------------
 export async function checkOut(userId) {
   const today = moment().format("YYYY-MM-DD");
-  const now = moment().format("HH:mm");
+  const now = new Date();
 
   const rows = await db
     .select()
     .from(attendance)
-    .where(and(eq(attendance.userId, userId), eq(attendance.date, today)));
+    .where(
+      and(
+        eq(attendance.userId, userId),
+        eq(attendance.date, today),
+        or(isNull(attendance.checkOut), eq(attendance.checkOut, "")),
+      ),
+    )
+    .limit(1);
 
-  if (rows.length === 0) {
-    throw new Error("Cannot check-out — no check-in found");
+  if (!rows.length) {
+    throw new Error("No active session found");
   }
 
-  const lastEntry = rows[rows.length - 1];
+  const entry = rows[0];
 
-  const start = moment(lastEntry.checkIn, "HH:mm");
-  const end = moment(now, "HH:mm");
+  if (!entry.checkInAt) {
+    throw new Error("checkInAt missing");
+  }
 
-  const diffHours = Number((end.diff(start, "minutes") / 60).toFixed(2));
+  const startMs = new Date(entry.checkInAt).getTime();
+  const endMs = now.getTime();
+
+  const workedSeconds =
+    Math.floor((endMs - startMs) / 1000) -
+    Number(entry.totalPausedSeconds || 0);
+
+  const totalHours = Number((workedSeconds / 3600).toFixed(2));
 
   await db
     .update(attendance)
     .set({
-      checkOut: now,
-      totalHours: diffHours,
+      checkOut: moment(now).format("HH:mm"),
+      totalHours,
+      isPaused: false,
+      pausedAt: null,
     })
-    .where(eq(attendance.id, lastEntry.id));
+    .where(eq(attendance.id, entry.id));
 
-  return { message: "Checked out" };
+  return {
+    totalHours,
+    checkOutAt: now.toISOString(),
+  };
 }
