@@ -31,6 +31,14 @@ export async function createLeave(userId, payload) {
   return { id: inserted.id };
 }
 
+// *************** delete ******************//
+
+export async function deleteLeaveRequest(id) {
+  await db
+    .delete(leaveRequests)
+    .where(eq(leaveRequests.id, id));
+}
+
 //  🔥 UPDATED FUNCTION — returns employee name + leave details
 //
 export async function getAllLeaves() {

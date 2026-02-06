@@ -1,5 +1,6 @@
 import * as service from "./leave.service.js";
 import { ok, created } from "../../utils/apiResponse.js";
+import { deleteLeaveRequest } from "./leave.service.js";
 
 export async function getMyLeaves(req, res, next) {
   try {
@@ -16,6 +17,19 @@ export async function createLeave(req, res, next) {
     return created(res, data);
   } catch (err) {
     next(err);
+  }
+}
+
+export async function deleteLeave(req, res) {
+  try {
+    const { id } = req.params;
+
+    await deleteLeaveRequest(Number(id));
+
+    res.json({ message: "Leave deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to delete leave" });
   }
 }
 

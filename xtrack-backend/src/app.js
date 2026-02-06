@@ -15,6 +15,7 @@ import monthlyLeaveRoutes from "./modules/applyLeave/monthlyLeave.js";
 import getAllUsers from "./modules/applyLeave/getAllUsers.js";
 import salaryRoutes from "./modules/salary/Salary.routes.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
+import employeeRoutes from "./modules/employee/employee.routes.js";
 dotenv.config();
 
 const app = express();
@@ -40,6 +41,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use('/api', applyLeaveRoutes)
 app.use('/api', monthlyLeaveRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/employee", employeeRoutes);
 
 
 // Health check
