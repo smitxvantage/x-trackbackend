@@ -1,5 +1,6 @@
 import * as service from "./attendance.service.js";
 
+
 // --------------------------------------
 // USER: GET /attendance/me
 // --------------------------------------
@@ -36,13 +37,43 @@ export async function checkIn(req, res, next) {
   }
 }
 
+// -------------------- PAUSE --------------------
+// -------------------- PAUSE --------------------
+export async function pauseSession(req, res, next) {
+  try {
+    const data = await service.pauseSession(req.user.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// -------------------- RESUME --------------------
+export async function resumeSession(req, res, next) {
+  try {
+    const data = await service.resumeSession(req.user.id);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+
+
 // --------------------------------------
 // USER: POST /attendance/check-out
 // --------------------------------------
 export async function checkOut(req, res, next) {
   try {
     const data = await service.checkOut(req.user.id);
-    res.json({ success: true, data });
+
+    res.json({
+      success: true,
+      data: {
+        ...data,
+        checkOutTime: new Date().toISOString(),
+      },
+    });
   } catch (err) {
     next(err);
   }
