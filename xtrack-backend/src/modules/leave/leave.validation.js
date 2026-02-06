@@ -12,6 +12,6 @@ export const createLeaveSchema = z.object({
 });
 
 export const updateLeaveStatusSchema = z.object({
-  status: z.enum(["approved", "rejected"]),
+  status: z.enum(["approved", "rejected", "cancelled"]),
   rejectionReason: z.string().optional()
 });

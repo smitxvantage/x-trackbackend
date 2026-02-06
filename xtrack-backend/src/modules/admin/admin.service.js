@@ -3,7 +3,8 @@ import { dailyReports } from "../../db/schema/dailyReports.js";
 import { attendance } from "../../db/schema/attendance.js";
 import { users } from "../../db/schema/users.js";
 import { leaveRequests } from "../../db/schema/leaveRequests.js";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
+
 
 export async function getEmployeeDailySummary({
   date,
@@ -115,4 +116,73 @@ export async function getEmployeeDailySummary({
       isHoliday: !!leaveMap[user.id],
     };
   });
+}
+
+export async function getAdminDashboardService() {
+  const today = new Date().toISOString().split("T")[0];
+
+  // 1️⃣ Total employees
+  const totalEmployees = await db
+    .select({ count: sql`COUNT(*)` })
+    .from(users)
+    .then(r => Number(r[0].count));
+
+  // 2️⃣ On leave today
+  const onLeaveToday = await db
+    .select({ count: sql`COUNT(DISTINCT ${leaveRequests.userId})` })
+    .from(leaveRequests)
+    .where(
+      and(
+        eq(leaveRequests.status, "approved"),
+        sql`${leaveRequests.startDate} <= ${today}`,
+        sql`${leaveRequests.endDate} >= ${today}`
+      )
+    )
+    .then(r => Number(r[0].count));
+
+  // 3️⃣ Pending daily reports
+  const pendingReports = await db
+    .select({ count: sql`COUNT(*)` })
+    .from(dailyReports)
+    .where(eq(dailyReports.status, "submitted"))
+    .then(r => Number(r[0].count));
+
+  // 4️⃣ 🔥 RECENT DAILY REPORTS (THIS WAS BROKEN)
+  const recentReports = await db
+    .select({
+      id: dailyReports.id,
+      userName: users.name,
+      tasks: dailyReports.tasks,
+      hoursSpent: dailyReports.hoursSpent,
+      createdAt: dailyReports.createdAt,
+    })
+    .from(dailyReports)
+    .leftJoin(users, eq(users.id, dailyReports.userId))
+    .orderBy(desc(dailyReports.createdAt))
+    .limit(5); // 👈 very important
+
+  // 5️⃣ Pending leaves
+  const pendingLeaves = await db
+    .select({
+      id: leaveRequests.id,
+      userName: users.name,
+      leaveType: leaveRequests.leaveType,
+      startDate: leaveRequests.startDate,
+      endDate: leaveRequests.endDate,
+    })
+    .from(leaveRequests)
+    .leftJoin(users, eq(users.id, leaveRequests.userId))
+    .where(eq(leaveRequests.status, "pending"))
+    .orderBy(desc(leaveRequests.createdAt))
+    .limit(5);
+
+  return {
+    stats: {
+      totalEmployees,
+      onLeaveToday,
+      pendingReports,
+    },
+    recentReports,
+    pendingLeaves,
+  };
 }
