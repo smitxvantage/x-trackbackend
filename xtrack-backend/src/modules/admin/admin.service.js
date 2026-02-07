@@ -5,15 +5,12 @@ import { users } from "../../db/schema/users.js";
 import { leaveRequests } from "../../db/schema/leaveRequests.js";
 import { eq, and, sql, desc } from "drizzle-orm";
 
-
 export async function getEmployeeDailySummary({
   date,
   range = "day",
   userId,
 } = {}) {
-  const baseDate = date
-    ? new Date(date)
-    : new Date();
+  const baseDate = date ? new Date(date) : new Date();
 
   // 🔹 Convert to YYYY-MM-DD
   const format = (d) => d.toISOString().split("T")[0];
@@ -55,8 +52,8 @@ export async function getEmployeeDailySummary({
     .where(
       and(
         sql`DATE(${attendance.date}) >= ${startDate}`,
-        sql`DATE(${attendance.date}) <= ${endDate}`
-      )
+        sql`DATE(${attendance.date}) <= ${endDate}`,
+      ),
     );
 
   // 3️⃣ Daily reports
@@ -66,8 +63,8 @@ export async function getEmployeeDailySummary({
     .where(
       and(
         sql`DATE(${dailyReports.date}) >= ${startDate}`,
-        sql`DATE(${dailyReports.date}) <= ${endDate}`
-      )
+        sql`DATE(${dailyReports.date}) <= ${endDate}`,
+      ),
     );
 
   // 4️⃣ Leaves
@@ -77,8 +74,8 @@ export async function getEmployeeDailySummary({
     .where(
       and(
         sql`${leaveRequests.startDate} <= ${endDate}`,
-        sql`${leaveRequests.endDate} >= ${startDate}`
-      )
+        sql`${leaveRequests.endDate} >= ${startDate}`,
+      ),
     );
 
   const attendanceMap = {};
@@ -110,7 +107,7 @@ export async function getEmployeeDailySummary({
 
       totalEstimatedMinutes: userReports.reduce(
         (sum, r) => sum + (r.hoursSpent || 0),
-        0
+        0,
       ),
 
       isHoliday: !!leaveMap[user.id],
@@ -121,11 +118,20 @@ export async function getEmployeeDailySummary({
 export async function getAdminDashboardService() {
   const today = new Date().toISOString().split("T")[0];
 
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay());
+  const weekStartStr = weekStart.toISOString().split("T")[0];
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  const weekEndStr = weekEnd.toISOString().split("T")[0];
+
   // 1️⃣ Total employees
   const totalEmployees = await db
     .select({ count: sql`COUNT(*)` })
     .from(users)
-    .then(r => Number(r[0].count));
+    .then((r) => Number(r[0].count));
 
   // 2️⃣ On leave today
   const onLeaveToday = await db
@@ -135,17 +141,71 @@ export async function getAdminDashboardService() {
       and(
         eq(leaveRequests.status, "approved"),
         sql`${leaveRequests.startDate} <= ${today}`,
-        sql`${leaveRequests.endDate} >= ${today}`
-      )
+        sql`${leaveRequests.endDate} >= ${today}`,
+      ),
     )
-    .then(r => Number(r[0].count));
+    .then((r) => Number(r[0].count));
 
   // 3️⃣ Pending daily reports
   const pendingReports = await db
     .select({ count: sql`COUNT(*)` })
     .from(dailyReports)
     .where(eq(dailyReports.status, "submitted"))
-    .then(r => Number(r[0].count));
+    .then((r) => Number(r[0].count));
+
+  // 🔥 On Time Today
+  const onTimeToday = await db
+    .select({ count: sql`COUNT(*)` })
+    .from(attendance)
+    .where(
+      and(
+        sql`DATE(${attendance.date}) = ${today}`,
+        eq(attendance.status, "on_time"),
+      ),
+    )
+    .then((r) => Number(r[0].count));
+
+  // 🔥 Weekly Work Hours (RAW QUERY FIRST)
+  const weeklyWorkHoursRaw = await db
+    .select({
+      day: sql`DAYNAME(${dailyReports.date})`,
+      minutes: sql`SUM(${dailyReports.hoursSpent})`,
+    })
+    .from(dailyReports)
+    .where(
+      and(
+        sql`DATE(${dailyReports.date}) >= ${weekStartStr}`,
+        sql`DATE(${dailyReports.date}) <= ${weekEndStr}`,
+      ),
+    )
+    .groupBy(sql`DAYNAME(${dailyReports.date})`);
+
+  const weeklyWorkHours = weeklyWorkHoursRaw.map((d) => ({
+    name: d.day.slice(0, 3), // Mon, Tue
+    hours: Math.round((d.minutes || 0) / 60),
+  }));
+
+
+  // 🔥 Attendance Overview (RAW)
+const attendanceOverviewRaw = await db
+  .select({
+    week: sql`WEEK(${attendance.date})`,
+    present: sql`SUM(CASE WHEN ${attendance.status} = 'present' THEN 1 ELSE 0 END)`,
+    absent: sql`SUM(CASE WHEN ${attendance.status} = 'absent' THEN 1 ELSE 0 END)`,
+  })
+  .from(attendance)
+  .groupBy(sql`WEEK(${attendance.date})`)
+  .orderBy(sql`WEEK(${attendance.date}) DESC`)
+  .limit(4);
+
+const attendanceOverview = attendanceOverviewRaw
+  .reverse()
+  .map((w, i) => ({
+    name: `Week ${i + 1}`,
+    present: Number(w.present),
+    absent: Number(w.absent),
+  }));
+
 
   // 4️⃣ 🔥 RECENT DAILY REPORTS (THIS WAS BROKEN)
   const recentReports = await db
@@ -181,8 +241,76 @@ export async function getAdminDashboardService() {
       totalEmployees,
       onLeaveToday,
       pendingReports,
+      onTimeToday,
     },
+    weeklyWorkHours,
+    attendanceOverview,
     recentReports,
     pendingLeaves,
   };
+}
+export async function getOnLeaveDetailsService() {
+  const today = new Date().toISOString().split("T")[0];
+
+  const rows = await db
+    .select({
+      id: leaveRequests.id,
+      userId: leaveRequests.userId,
+      userName: users.name,
+      leaveType: leaveRequests.leaveType,
+      reason: leaveRequests.reason,
+      startDate: leaveRequests.startDate,
+      endDate: leaveRequests.endDate,
+      status: leaveRequests.status,
+      createdAt: leaveRequests.createdAt,
+    })
+    .from(leaveRequests)
+    .leftJoin(users, eq(users.id, leaveRequests.userId))
+    .where(
+      and(
+        eq(leaveRequests.status, "approved"),
+        sql`${leaveRequests.startDate} <= ${today}`,
+        sql`${leaveRequests.endDate} >= ${today}`
+      )
+    )
+    .orderBy(desc(leaveRequests.startDate));
+
+  return rows;
+}
+
+
+export async function getPendingReportsService() {
+  const rows = await db
+    .select({
+      id: dailyReports.id,
+      userId: dailyReports.userId,
+      userName: users.name,
+      tasks: dailyReports.tasks,
+      hoursSpent: dailyReports.hoursSpent,
+      date: dailyReports.date,
+      status: dailyReports.status,
+      createdAt: dailyReports.createdAt,
+    })
+    .from(dailyReports)
+    .leftJoin(users, eq(users.id, dailyReports.userId))
+    .where(eq(dailyReports.status, "submitted"))
+    .orderBy(desc(dailyReports.createdAt));
+
+  return rows;
+}
+
+export async function getAllEmployeesService() {
+  const rows = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      isActive: users.isActive,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .orderBy(desc(users.createdAt));
+
+  return rows;
 }
