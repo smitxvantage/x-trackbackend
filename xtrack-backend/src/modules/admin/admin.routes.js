@@ -1,7 +1,7 @@
 import express from "express";
 import { authMiddleware, requireRole } from "../../middleware/auth.js";
 import { getEmployeeDailySummary } from "./admin.service.js";
-import { getAdminDashboard } from "./admin.controller.js";
+import { getAdminDashboard, getOnLeaveDetails, getPendingReports, getAllEmployees } from "./admin.controller.js";
 
 const router = express.Router();
 
@@ -18,7 +18,26 @@ router.get(
   "/dashboard",
   authMiddleware,
   requireRole("admin"),
-  getAdminDashboard
+  getAdminDashboard,
 );
+router.get(
+  "/on-leave-details",
+  authMiddleware,
+  requireRole("admin"),
+  getOnLeaveDetails,
+);
+router.get(
+  "/pending-reports",
+  authMiddleware,
+  requireRole("admin"),
+  getPendingReports
+);
+router.get(
+  "/employees",
+  authMiddleware,
+  requireRole("admin"),
+  getAllEmployees
+);
+
 
 export default router;
