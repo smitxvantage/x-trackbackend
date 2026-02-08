@@ -45,3 +45,22 @@ export async function deleteUser(req, res, next) {
     next(err);
   }
 }
+
+export async function uploadAvatar(req, res, next) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+    const data = await service.updateUser(req.user.id, {
+      avatar: avatarUrl,
+    });
+
+    return ok(res, data);
+  } catch (err) {
+    next(err);
+  }
+}
+

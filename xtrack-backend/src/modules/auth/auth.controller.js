@@ -12,9 +12,10 @@ export async function login(req, res, next) {
 
 export async function getMe(req, res, next) {
   try {
-    const me = await authService.getMe(req.user.id);
-    return ok(res, me);
+    const data = await authService.getMe(req.user.id);
+    return ok(res, data);
   } catch (err) {
     next(err);
   }
 }
+

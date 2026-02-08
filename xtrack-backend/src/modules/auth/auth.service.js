@@ -5,7 +5,11 @@ import { users } from "../../db/schema/users.js";
 import { eq } from "drizzle-orm";
 
 export async function login({ username, password }) {
-  const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.username, username))
+    .limit(1);
   if (!user) {
     const error = new Error("Invalid credentials");
     error.statusCode = 401;
@@ -18,9 +22,13 @@ export async function login({ username, password }) {
     throw error;
   }
 
-  const token = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d"
-  });
+  const token = jwt.sign(
+    { userId: user.id, role: user.role },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+    },
+  );
 
   return {
     token,
@@ -30,18 +38,25 @@ export async function login({ username, password }) {
       username: user.username,
       email: user.email,
       role: user.role,
-      department: user.department
-    }
+      department: user.department,
+    },
   };
 }
 
+// src/modules/auth/auth.service.js
 export async function getMe(userId) {
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
   if (!user) {
     const error = new Error("User not found");
     error.statusCode = 404;
     throw error;
   }
+
   return {
     id: user.id,
     name: user.name,
@@ -49,6 +64,6 @@ export async function getMe(userId) {
     email: user.email,
     role: user.role,
     department: user.department,
-    profilePicUrl: user.profilePicUrl
+    avatar: user.avatar, // ✅ THIS MUST EXIST
   };
 }

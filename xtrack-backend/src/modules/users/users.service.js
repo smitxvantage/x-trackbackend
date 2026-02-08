@@ -20,28 +20,39 @@ export async function getUserById(id) {
 
 export async function createUser(payload) {
   const hashed = await bcrypt.hash(payload.password, 10);
-  const [inserted] = await db.insert(users).values({
-    name: payload.name,
-    email: payload.email,
-    username: payload.username,
-    password: hashed,
-    role: payload.role ?? "employee",
-    department: payload.department ?? null,
-    managerId: payload.managerId ?? null,
-    joiningDate: payload.joiningDate ?? null,
-    earnedLeave: 0,
-    lastLeaveIncrement: new Date(),
-  }).$returningId();
+  const [inserted] = await db
+    .insert(users)
+    .values({
+      name: payload.name,
+      email: payload.email,
+      username: payload.username,
+      password: hashed,
+      role: payload.role ?? "employee",
+      department: payload.department ?? null,
+      managerId: payload.managerId ?? null,
+      joiningDate: payload.joiningDate ?? null,
+      earnedLeave: 0,
+      lastLeaveIncrement: new Date(),
+    })
+    .$returningId();
   return { id: inserted.id };
 }
 
 export async function updateUser(id, payload) {
   const data = { ...payload };
+
+  // hash password if present
   if (payload.password) {
     data.password = await bcrypt.hash(payload.password, 10);
   } else {
     delete data.password;
   }
+
+  // 🔥 IMPORTANT: prevent empty update
+  if (Object.keys(data).length === 0) {
+    return getUserById(id);
+  }
+
   await db.update(users).set(data).where(eq(users.id, id));
   return getUserById(id);
 }
