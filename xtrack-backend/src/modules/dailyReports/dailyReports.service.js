@@ -16,6 +16,7 @@ export async function createReport(userId, payload) {
     userId,
     date: payload.date,
     tasks: payload.tasks ?? null,
+    description: payload.description ?? null,
     hoursWorked: payload.hoursWorked ?? 0,
     hoursSpent: payload.hoursSpent ?? 0,
     admin: payload.admin ?? null,
@@ -46,6 +47,7 @@ export async function updateOwnReport(userId, reportId, payload) {
     .update(dailyReports)
     .set({
       tasks,
+      description,
       hoursSpent,
       admin,
       isEdited: true,
@@ -59,16 +61,19 @@ export async function updateOwnReport(userId, reportId, payload) {
 export async function getAllReports(_query) {
   const rows = await db
     .select({
-      id: dailyReports.id,
-      userId: dailyReports.userId,
-      userName: users.name,   // ✅ THIS IS THE KEY
-      date: dailyReports.date,
-      tasks: dailyReports.tasks,
-      hoursSpent: dailyReports.hoursSpent,
-      status: dailyReports.status,
-      admin: dailyReports.admin,
-      createdAt: dailyReports.createdAt,
-    })
+  id: dailyReports.id,
+  userId: dailyReports.userId,
+  userName: users.name,
+  date: dailyReports.date,
+  tasks: dailyReports.tasks,
+  description: dailyReports.description,   // ✅ MUST
+  hoursSpent: dailyReports.hoursSpent,
+  status: dailyReports.status,
+  admin: dailyReports.admin,
+  submittedAt: dailyReports.submittedAt,   // ✅ MUST
+  approvedAt: dailyReports.approvedAt,     // ✅ MUST
+})
+
     .from(dailyReports)
     .leftJoin(users, eq(dailyReports.userId, users.id));
 

@@ -7,4 +7,6 @@ const router = Router();
 router.post("/create", controller.createEmployeeController);
 router.get("/getemployee", controller.getEmployeesController);
 router.get("/salary/calculate", calculateSalaryController);
+router.put("/update/:id", controller.updateEmployeeController);
+ 
 export default router;

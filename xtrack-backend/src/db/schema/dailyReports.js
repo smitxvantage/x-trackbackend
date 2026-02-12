@@ -12,6 +12,7 @@ export const dailyReports = mysqlTable("daily_reports", {
   isEdited: boolean("is_edited").default(false).notNull(),
   submittedAt: datetime("submitted_at", { mode: "date" }).default(null),
   approvedAt: datetime("approved_at", { mode: "date" }).default(null),
+  description: text("description"),
 
   approvedBy: int("approved_by"),
   createdAt: datetime("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),

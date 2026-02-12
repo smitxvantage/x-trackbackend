@@ -59,3 +59,46 @@ export async function getEmployeesController(req, res) {
     return res.status(500).json({ error: err.message });
   }
 }
+export async function updateEmployeeController(req, res) {
+  try {
+    const { id } = req.params;
+    const { name, salary: empSalary } = req.body;
+
+    if (!name || !empSalary) {
+      return res.status(400).json({
+        error: "Name and salary are required",
+      });
+    }
+
+    // Find user by username
+    const user = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, name))
+      .limit(1);
+
+    if (!user.length) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const userId = user[0].id;
+
+    // Update salary record
+    await db
+      .update(salary)
+      .set({
+        name,
+        salary: Number(empSalary),
+        userId,
+      })
+      .where(eq(salary.id, Number(id)));
+
+    return res.status(200).json({
+      message: "Employee updated successfully",
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+}

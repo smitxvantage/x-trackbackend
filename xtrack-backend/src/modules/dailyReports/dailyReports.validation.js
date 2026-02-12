@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createDailyReportSchema = z.object({
   date: z.string(),
   tasks: z.string().optional(),
+  description: z.string().optional(), 
   hoursWorked: z.number().multipleOf(0.01),
   hoursSpent: z.number().int().optional(),
   attachments: z.string().nullable().optional(),
@@ -12,6 +13,7 @@ export const createDailyReportSchema = z.object({
 
 export const updateDailyReportSchema = z.object({
   tasks: z.string().min(1),
+  description: z.string().optional(),
   hoursSpent: z.number().int(),
   admin: z.string().optional(),
 });
