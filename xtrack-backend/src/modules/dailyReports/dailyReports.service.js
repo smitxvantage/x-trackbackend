@@ -29,7 +29,7 @@ export async function createReport(userId, payload) {
 }
 
 export async function updateOwnReport(userId, reportId, payload) {
-  const { tasks, hoursSpent, admin } = payload;
+  const { tasks, hoursSpent, admin,description } = payload;
 
   const [existing] = await db
     .select()
